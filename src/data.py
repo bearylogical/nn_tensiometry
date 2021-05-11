@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from typing import NewType, Sequence, Tuple
+from scipy.io import loadmat
 
 FeatureArray = NewType('FeatureArray', np.ndarray)
 Features = Sequence[FeatureArray]
@@ -11,35 +12,47 @@ PARENT_DIR = os.path.dirname(ROOT_DIR)  # Directory for storing logged images
 DATA_DIR = os.path.join(PARENT_DIR, "data")
 
 
-def extract_txt(file:str):
-    return np.loadtxt(file,  dtype="float32", delimiter=',')
+def extract_features(records:np.ndarray, record_len:int)->np.ndarray:
+    """Function extract features from Matlab struct
 
-def extract_labels(idx_file):
-    return np.loadtxt(idx_file, skiprows=1, usecols=(0,1), delimiter=",")
+    Args:
+        records (np.ndarray): Array of Record struct from Matlab
+        record_len (int): Total number of records
 
-def load_dataset(data_dir:str, index_file:str)->Tuple[Features, Labels]:
+    Returns:
+        [np.ndarray]: Output array of shape (record_len, 2) 
+    """
+    r = [records['record'][i]['r'].item() for i in range(record_len)]
+    z = [records['record'][i]['z'].item() for i in range(record_len)]
+    return np.asarray(tuple(zip(r, z)))
 
-    data_files = [file for file in os.listdir(data_dir) if file.split('.')[-1] == "txt"]
-    sorted_files = sorted(data_files, key=lambda x : int(x.split('.')[0]))
+def extract_labels(records:np.ndarray, record_len:int)->np.ndarray:
+    """Function to extract labels (sig0, vol0) from Matlab struct
 
-    if os.path.exists(index_file):
-        labels = extract_labels(index_file)
+    Args:
+        records (np.ndarray): Array of Record struct from Matlab
+        record_len (int): Total number of records
+
+    Returns:
+        [np.ndarray]: Output array of shape (record_len, 2) 
+    """
+    sig0 = [records['record'][i]['sig0'].item() for i in range(record_len)]
+    vol0 = [records['record'][i]['vol0'].item() for i in range(record_len)]
+    return np.asarray(tuple(zip(sig0, vol0)))
+
+def load_dataset(m_file:str)->Tuple[Features, Labels]:
+
+    if os.path.exists(m_file):
+        records = loadmat(m_file, squeeze_me=True, mat_dtype=True)['records']
+        record_len = len(records)
+        features = extract_features(records=records, record_len=record_len)
+        labels = extract_labels(records=records, record_len=record_len)
+
+        return features, labels
     else:
-        raise FileNotFoundError(f'{index_file} does not exist!')
-    
-    txt_files = []
-    for file in sorted_files:
-        fp = os.path.join(data_dir, file)
-        txt_files.append(fp)
-    
-    features = np.asarray([extract_txt(f) for f in txt_files])
+        raise FileNotFoundError(f'{m_file} does not exist!')
 
-    if features is None:
-        raise ValueError('No features for input!')
-    
-    return features, labels
 
-    
 if __name__ == "__main__":
-    index_file_path = os.path.join(DATA_DIR, "index.csv")
-    load_dataset(DATA_DIR, index_file_path)
+    m_file = os.path.join(DATA_DIR, "data.mat")
+    load_dataset(m_file)
