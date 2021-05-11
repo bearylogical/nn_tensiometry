@@ -131,3 +131,6 @@ dmypy.json
 # exclude data folder
 data/*
 
+*.h5
+logs/
+
